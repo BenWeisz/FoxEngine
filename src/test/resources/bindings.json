@@ -1,0 +1,14 @@
+{
+  "up": [
+    "W", "UP"
+  ],
+  "down": [
+    "S", "DOWN"
+  ],
+  "right": [
+    "D", "RIGHT"
+  ],
+  "left": [
+    "A", "LEFT"
+  ]
+}

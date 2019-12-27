@@ -1,13 +1,14 @@
 package fox.main;
 
-import fox.input.Keyboard;
 import fox.node.Node;
 import org.lwjgl.glfw.GLFWErrorCallback;
-import org.lwjgl.glfw.GLFWKeyCallback;
+import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.system.MemoryUtil.NULL;
@@ -17,19 +18,7 @@ public abstract class FoxEngine {
 
     private GLFWErrorCallback mErrorCallback = GLFWErrorCallback.createPrint(System.err);
 
-    // TODO move this to the input class.
-    private GLFWKeyCallback mKeyCallback = new GLFWKeyCallback() {
-        @Override
-        public void invoke(long window, int key, int scancode, int action, int mods) {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-                glfwSetWindowShouldClose(window, true);
-                mSettings.put("running", false);
-            }
-        }
-    };
-
     private long mWindow;
-    private Keyboard mKeyboard;
     private Node mCurrentScene;
 
     /**
@@ -63,6 +52,7 @@ public abstract class FoxEngine {
 
     private void internalInit(){
         init();
+        Keyboard.init();
 
         glfwSetErrorCallback(mErrorCallback);
 
@@ -79,8 +69,10 @@ public abstract class FoxEngine {
             throw new RuntimeException("Failed to create the GLFW window");
         }
 
-        mKeyboard = Keyboard.getKeyboard();
-        glfwSetKeyCallback(mWindow, mKeyboard.getKeyCallback());
+        glfwSetKeyCallback(mWindow, Keyboard.getKeyCallback());
+
+        GLFWVidMode vidMode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        glfwSetWindowPos(mWindow, (vidMode.width() - width) / 2, (vidMode.height() - height) / 2);
 
         glfwMakeContextCurrent(mWindow);
         GL.createCapabilities();
@@ -103,12 +95,22 @@ public abstract class FoxEngine {
         double targetUpdateDelta = 1.0f / (Float) mSettings.get("UPS");
         double targetFrameDelta = 1.0f / (Float) mSettings.get("FPS");
 
+        double prevLogTime = glfwGetTime();
+        int upsCounter = 0;
+
         while ((Boolean) mSettings.get("running") && !glfwWindowShouldClose(mWindow)){
             double currentTime = glfwGetTime();
+
+            if (currentTime - prevLogTime > 1.0f){
+                prevLogTime = currentTime;
+                logger.debug("UPS -> " + upsCounter);
+                upsCounter = 0;
+            }
 
             if (currentTime - prevUpdateTime > targetUpdateDelta){
                 update(currentTime - prevUpdateTime);
                 prevUpdateTime = currentTime;
+                upsCounter += 1;
             }
 
             if (currentTime - prevFrameTime > targetFrameDelta) {
@@ -121,7 +123,7 @@ public abstract class FoxEngine {
         }
 
         glfwDestroyWindow(mWindow);
-        mKeyboard.getKeyCallback().free();
+        Keyboard.getKeyCallback().free();
 
         glfwTerminate();
         mErrorCallback.free();
@@ -132,7 +134,26 @@ public abstract class FoxEngine {
      * @param dt The elapsed time since the last physics update
      */
     private void update(double dt){
+        Stack<Node> visited = new Stack<>();
+        visited.add(mCurrentScene);
 
+        Stack<Node> updates = new Stack<>();
+
+        while (!visited.empty()){
+            Node currNode = visited.pop();
+            updates.push(currNode);
+
+            List<Node> children = currNode.getChildren();
+            for (Node child : children)
+                visited.push(child);
+        }
+
+        while (!updates.empty()){
+            Node currNode = updates.pop();
+            currNode.update(dt);
+        }
+
+        Keyboard.update();
     }
 
     /**
@@ -140,5 +161,13 @@ public abstract class FoxEngine {
      */
     private void render(){
 
+    }
+
+    /**
+     * Swap the current scene for a new one.
+     * @param scene The scene that is to be displayed
+     */
+    public void switchScene(Node scene){
+        mCurrentScene = scene;
     }
 }
