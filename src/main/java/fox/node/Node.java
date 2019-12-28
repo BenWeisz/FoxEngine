@@ -2,15 +2,12 @@ package fox.node;
 
 import fox.main.Logger;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public abstract class Node {
-    private String mName;
-    private List<Node> mChildren = new ArrayList<>();
-    private Set<String> mChildrenNames = new HashSet<>();
+    protected String mName;
+    protected List<Node> mChildren = new ArrayList<>();
+    protected Set<String> mChildrenNames = new HashSet<>();
 
     /**
      * Create a new Node.
@@ -33,8 +30,8 @@ public abstract class Node {
 
     /**
      * Add a child to this node.
-     * - Children (direct descendants) should have distinct names
-     * - It is recommended that descendants do not have the same names
+     * <b>Children (direct descendants) should have distinct names</b>.
+     * It is recommended that descendants do not have the same names
      * @param child The node to add as a child
      */
     public void addChild(Node child){
@@ -44,12 +41,82 @@ public abstract class Node {
         }
         else {
             Logger logger = Logger.getLogger();
-            logger.error("This Node already has a child with name: " + child.getName());
+            logger.warn("This Node already has a child with name: " + child.getName());
         }
     }
 
-    // TODO Implement getDescendant : recursively find first descendant with given name
-    // TODO Implement removeDescendent : recursively find first descendant with given name and remove
+    /**
+     * Add multiple children to this Node.
+     * @param children The list of children to add
+     */
+    public void addChildren(Node... children){
+        for (Node child : children)
+            addChild(child);
+    }
+
+    /**
+     * Get the shallowest descendant of this node that has the given name.
+     * @param name The name of the descendant
+     * @return The descendant
+     */
+    public Node getDescendant(String name){
+        Queue<Node> descendants = new LinkedList<>();
+        descendants.add(this);
+
+        while (!descendants.isEmpty()){
+            Node descendant = descendants.poll();
+            if (descendant.getName().equals(name))
+                return  descendant;
+
+            for (Node child : descendant.getChildren())
+                descendants.add(child);
+        }
+
+        Logger logger = Logger.getLogger();
+        logger.warn("No descendant was found with name: " + name);
+
+        return null;
+    }
+
+    /**
+     * Remove a descendant of this Node only if it exists.
+     * This method cannot remove the node itself.
+     * @param name The name of the descendant to remove
+     * @return Whether or not the descendant was removed
+     */
+    public boolean removeDescendant(String name){
+        Node nullNode = null;
+        Queue<List<Node>> descendantChain = new LinkedList<>();
+        descendantChain.add(Arrays.asList(this, nullNode));
+
+        Logger logger = Logger.getLogger();
+
+        while (!descendantChain.isEmpty()){
+            List<Node> chain = descendantChain.poll();
+
+            Node descendant = chain.get(0);
+            Node parent = chain.get(1);
+
+            if (descendant.getName().equals(name)){
+                if (parent!= null){
+                    parent.getChildren().remove(descendant);
+                    parent.mChildrenNames.remove(descendant.getName());
+
+                    return true;
+                }
+                else {
+                    logger.warn("The node itself is not a descendant, so it cannot be removed");
+                    return false;
+                }
+            }
+
+            for (Node child : descendant.getChildren())
+                descendantChain.add(Arrays.asList(child, descendant));
+        }
+
+        logger.warn("The descendant with name: " + name + " does not exists");
+        return false;
+    }
 
     public String getName(){
         return mName;
